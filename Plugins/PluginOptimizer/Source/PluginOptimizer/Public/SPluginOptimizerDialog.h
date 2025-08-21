@@ -33,13 +33,13 @@ private:
 	ECheckBoxState IsItemChecked(TSharedPtr<FString> Item) const;
 
 	/* ---------- lógica --------------------- */
-	bool DisableOne(const FString& PluginName);      // usado pelo modo item
+	bool DisableOne(const FString& PluginName);
 	void DisableMultiple(const TArray<FString>& ToDisable);
-
+	void ShowRestartPopup();                 // << NOVO
 	void RefreshHeader();
 
 	/* ---------- dados ---------------------- */
-	TArray<TSharedPtr<FString>> Items;   // plugins ainda listados
+	TArray<TSharedPtr<FString>> Items;
 	TSet<FString>               Selected;
 	bool                        bSelectMode = false;
 

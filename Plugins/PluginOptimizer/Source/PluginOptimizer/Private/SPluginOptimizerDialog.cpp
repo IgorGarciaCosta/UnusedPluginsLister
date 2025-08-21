@@ -1,22 +1,37 @@
 #include "SPluginOptimizerDialog.h"
 
 #include "Interfaces/IProjectManager.h"
+#include "Misc/ConfigCacheIni.h"
+
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Layout/SBorder.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/MessageDialog.h"
 
 #define LOCTEXT_NAMESPACE "SPluginOptimizerDialog"
 
 /* ------------------------------------------------------------------ */
+/*  Preferência “não mostrar de novo”                                 */
+/* ------------------------------------------------------------------ */
+static const TCHAR* CFG_SECTION = TEXT("PluginOptimizer");
+static const TCHAR* CFG_KEY = TEXT("SuppressRestartPopup");
+static bool bSuppressRestartPopup = false;
+
+/* ------------------------------------------------------------------ */
 /*  CONSTRUTOR                                                         */
 /* ------------------------------------------------------------------ */
 void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 {
+	/* carrega preferência do .ini */
+	{
+		bool bTmp = false;
+		GConfig->GetBool(CFG_SECTION, CFG_KEY, bTmp, GEditorPerProjectIni);
+		bSuppressRestartPopup = bTmp;
+	}
+
 	EnabledCnt = InArgs._EnabledCount;
 	UsedCnt = InArgs._UsedCount;
 
@@ -59,7 +74,6 @@ void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 						+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)
 						[
 							SAssignNew(SelectAllBtn, SButton)
-								/*  rótulo muda dinamicamente  */
 								.Text_Lambda([this]()
 									{
 										return (Selected.Num() == Items.Num() && Items.Num() > 0)
@@ -69,7 +83,6 @@ void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 								.Visibility(EVisibility::Collapsed)
 								.OnClicked(this, &SPluginOptimizerDialog::OnSelectAllClicked)
 						]
-
 				]
 
 				/* ---------------- lista -------------------- */
@@ -95,7 +108,7 @@ void SPluginOptimizerDialog::RefreshHeader()
 }
 
 /* ------------------------------------------------------------------ */
-/*  LINHA DA LISTA  – agora com visibilidade dinâmica                  */
+/*  LINHA DA LISTA – checkbox na direita                              */
 /* ------------------------------------------------------------------ */
 TSharedRef<ITableRow> SPluginOptimizerDialog::OnGenerateRow(
 	TSharedPtr<FString> Item, const TSharedRef<STableViewBase>& Owner)
@@ -104,22 +117,13 @@ TSharedRef<ITableRow> SPluginOptimizerDialog::OnGenerateRow(
 		[
 			SNew(SHorizontalBox)
 
-				/* checkbox (mostra/oculta via Visibility) */
-				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(2, 0)
-				[
-					SNew(SCheckBox)
-						.Visibility_Lambda([this]() { return bSelectMode ? EVisibility::Visible : EVisibility::Collapsed; })
-						.IsChecked(this, &SPluginOptimizerDialog::IsItemChecked, Item)
-						.OnCheckStateChanged(this, &SPluginOptimizerDialog::OnCheckboxChanged, Item)
-				]
-
 				/* nome do plugin */
 				+ SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center).Padding(4, 0)
 				[
 					SNew(STextBlock).Text(FText::FromString(*Item))
 				]
 
-				/* botão Disable individual (esconde em select-mode) */
+				/* botão Disable individual */
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0)
 				[
 					SNew(SButton)
@@ -131,9 +135,17 @@ TSharedRef<ITableRow> SPluginOptimizerDialog::OnGenerateRow(
 								return FReply::Handled();
 							})
 				]
+
+				/* checkbox (aparece no lugar do botão) */
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(2, 0)
+				[
+					SNew(SCheckBox)
+						.Visibility_Lambda([this]() { return bSelectMode ? EVisibility::Visible : EVisibility::Collapsed; })
+						.IsChecked(this, &SPluginOptimizerDialog::IsItemChecked, Item)
+						.OnCheckStateChanged(this, &SPluginOptimizerDialog::OnCheckboxChanged, Item)
+				]
 		];
 }
-
 
 /* ------------------------------------------------------------------ */
 /*  BOTÕES DO TOPO                                                     */
@@ -143,7 +155,6 @@ FReply SPluginOptimizerDialog::OnSelectClicked()
 	bSelectMode = !bSelectMode;
 	Selected.Empty();
 
-	/* visibilidade de botões */
 	const EVisibility SelVis = bSelectMode ? EVisibility::Visible : EVisibility::Collapsed;
 	SelectAllBtn->SetVisibility(SelVis);
 	DisableSelectedBtn->SetVisibility(SelVis);
@@ -159,18 +170,13 @@ FReply SPluginOptimizerDialog::OnSelectAllClicked()
 	Selected.Empty();
 	if (!bAllSelected)
 	{
-		/* marcar todos */
-		for (const TSharedPtr<FString>& It : Items)
-			Selected.Add(*It);
+		for (const TSharedPtr<FString>& It : Items) Selected.Add(*It);
 	}
 
 	ListView->RequestListRefresh();
-	/* força atualização do texto do botão */
 	SelectAllBtn->Invalidate(EInvalidateWidget::Layout);
-
 	return FReply::Handled();
 }
-
 
 FReply SPluginOptimizerDialog::OnDisableSelectedClicked()
 {
@@ -181,10 +187,8 @@ FReply SPluginOptimizerDialog::OnDisableSelectedClicked()
 		return FReply::Handled();
 	}
 
-	/* cria array estável para iterar (Selected será modificado) */
-	TArray<FString> ToDisable = Selected.Array();
+	const TArray<FString> ToDisable = Selected.Array();
 	DisableMultiple(ToDisable);
-
 	return FReply::Handled();
 }
 
@@ -203,7 +207,7 @@ ECheckBoxState SPluginOptimizerDialog::IsItemChecked(TSharedPtr<FString> Item) c
 }
 
 /* ------------------------------------------------------------------ */
-/*  DESATIVAR 1                                                       */
+/*  DESATIVAR 1 PLUGIN                                                */
 /* ------------------------------------------------------------------ */
 bool SPluginOptimizerDialog::DisableOne(const FString& PluginName)
 {
@@ -224,19 +228,70 @@ bool SPluginOptimizerDialog::DisableOne(const FString& PluginName)
 	Selected.Remove(PluginName);
 	RefreshHeader();
 	ListView->RequestListRefresh();
+
+	ShowRestartPopup();
 	return true;
 }
 
 /* ------------------------------------------------------------------ */
-/*  DESATIVAR VÁRIOS                                                  */
+/*  DESATIVAR VÁRIOS PLUGINS                                          */
 /* ------------------------------------------------------------------ */
 void SPluginOptimizerDialog::DisableMultiple(const TArray<FString>& ToDisable)
 {
 	for (const FString& P : ToDisable)
 		DisableOne(P);
+	ShowRestartPopup();
+}
 
-	FMessageDialog::Open(EAppMsgType::Ok,
-		LOCTEXT("RestartRequired", "Selected plugins disabled.\nPlease restart the Editor to finish unloading."));
+/* ------------------------------------------------------------------ */
+/*  POP-UP “Restart required”                                         */
+/* ------------------------------------------------------------------ */
+void SPluginOptimizerDialog::ShowRestartPopup()
+{
+	if (bSuppressRestartPopup)
+		return;
+
+	TSharedPtr<SCheckBox> Check;
+	TSharedRef<SWindow> Win = SNew(SWindow)
+		.Title(LOCTEXT("RestartPopupTitle", "Plugin Optimizer"))
+		.ClientSize(FVector2D(400, 120))
+		.SupportsMinimize(false)
+		.SupportsMaximize(false);
+
+	Win->SetContent(
+		SNew(SVerticalBox)
+
+		+ SVerticalBox::Slot().FillHeight(1).Padding(10)
+		[
+			SNew(STextBlock)
+				.AutoWrapText(true)
+				.Text(LOCTEXT("RestartPopupMsg",
+					"Plugin disabled.\nPlease restart the editor to finish unloading."))
+		]
+
+		+ SVerticalBox::Slot().AutoHeight().Padding(10, 0, 10, 10)
+		[
+			SAssignNew(Check, SCheckBox)
+				.Content()
+				[
+					SNew(STextBlock).Text(LOCTEXT("DontShowAgain", "Don't show this again"))
+				]
+		]
+
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0, 0, 10, 10)
+		[
+			SNew(SButton)
+				.Text(LOCTEXT("OK", "OK"))
+				.OnClicked_Lambda([Win, Check]()
+					{
+						bSuppressRestartPopup = Check->IsChecked();
+						GConfig->SetBool(CFG_SECTION, CFG_KEY, bSuppressRestartPopup, GEditorPerProjectIni);
+						Win->RequestDestroyWindow();
+						return FReply::Handled();
+					})
+		]);
+
+	FSlateApplication::Get().AddModalWindow(Win, nullptr);
 }
 
 #undef LOCTEXT_NAMESPACE
