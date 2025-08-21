@@ -1,11 +1,8 @@
 #include "SPluginOptimizerDialog.h"
 
 #include "Interfaces/IProjectManager.h"
-#include "Interfaces/IPluginManager.h"
-
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SListView.h"
-#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -16,7 +13,7 @@
 #define LOCTEXT_NAMESPACE "SPluginOptimizerDialog"
 
 /* ------------------------------------------------------------------ */
-/*  CONSTRUTOR                                                        */
+/*  CONSTRUTOR                                                         */
 /* ------------------------------------------------------------------ */
 void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 {
@@ -30,16 +27,18 @@ void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 		[
 			SNew(SVerticalBox)
 
-				/* -------------- cabeçalho ---------------- */
+				/* ---------------- cabeçalho ---------------- */
 				+ SVerticalBox::Slot().AutoHeight().Padding(6)
 				[
 					SNew(SHorizontalBox)
 
+						/* texto contador */
 						+ SHorizontalBox::Slot().FillWidth(1)
 						[
 							SAssignNew(HeaderText, STextBlock).AutoWrapText(true)
 						]
 
+						/* botão Select (toggle) */
 						+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)
 						[
 							SNew(SButton)
@@ -47,6 +46,16 @@ void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 								.OnClicked(this, &SPluginOptimizerDialog::OnSelectClicked)
 						]
 
+						/* botão Disable (visível só em select-mode) */
+						+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)
+						[
+							SAssignNew(DisableSelectedBtn, SButton)
+								.Text(LOCTEXT("DisableTop", "Disable"))
+								.Visibility(EVisibility::Collapsed)
+								.OnClicked(this, &SPluginOptimizerDialog::OnDisableSelectedClicked)
+						]
+
+						/* botão Select All (visível só em select-mode) */
 						+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)
 						[
 							SAssignNew(SelectAllBtn, SButton)
@@ -56,7 +65,7 @@ void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 						]
 				]
 
-				/* -------------- lista -------------------- */
+				/* ---------------- lista -------------------- */
 				+ SVerticalBox::Slot().FillHeight(1).Padding(6)
 				[
 					SAssignNew(ListView, SListView<TSharedPtr<FString>>)
@@ -70,8 +79,6 @@ void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 }
 
 /* ------------------------------------------------------------------ */
-/*  HEADER                                                            */
-/* ------------------------------------------------------------------ */
 void SPluginOptimizerDialog::RefreshHeader()
 {
 	const int32 Potential = Items.Num();
@@ -81,58 +88,59 @@ void SPluginOptimizerDialog::RefreshHeader()
 }
 
 /* ------------------------------------------------------------------ */
-/*  GERA LINHA DA LISTA                                               */
+/*  LINHA DA LISTA  – agora com visibilidade dinâmica                  */
 /* ------------------------------------------------------------------ */
 TSharedRef<ITableRow> SPluginOptimizerDialog::OnGenerateRow(
-	TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& Owner)
+	TSharedPtr<FString> Item, const TSharedRef<STableViewBase>& Owner)
 {
 	return SNew(STableRow<TSharedPtr<FString>>, Owner)
 		[
 			SNew(SHorizontalBox)
 
-				/* checkbox (aparece só no select-mode) */
+				/* checkbox (mostra/oculta via Visibility) */
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(2, 0)
 				[
-					bSelectMode
-						? StaticCastSharedRef<SWidget>(
-							SNew(SCheckBox)
-							.IsChecked(this, &SPluginOptimizerDialog::IsItemChecked, InItem)
-							.OnCheckStateChanged(this, &SPluginOptimizerDialog::OnCheckboxChanged, InItem))
-						: SNullWidget::NullWidget
+					SNew(SCheckBox)
+						.Visibility_Lambda([this]() { return bSelectMode ? EVisibility::Visible : EVisibility::Collapsed; })
+						.IsChecked(this, &SPluginOptimizerDialog::IsItemChecked, Item)
+						.OnCheckStateChanged(this, &SPluginOptimizerDialog::OnCheckboxChanged, Item)
 				]
 
 				/* nome do plugin */
 				+ SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center).Padding(4, 0)
 				[
-					SNew(STextBlock).Text(FText::FromString(*InItem))
+					SNew(STextBlock).Text(FText::FromString(*Item))
 				]
 
-				/* botão Disable (só fora do select-mode) */
+				/* botão Disable individual (esconde em select-mode) */
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0)
 				[
-					!bSelectMode
-						? StaticCastSharedRef<SWidget>(
-							SNew(SButton)
-							.Text(LOCTEXT("Disable", "Disable"))
-							.OnClicked_Lambda([this, InItem]()
-								{
-									DisablePlugin(*InItem);
-									return FReply::Handled();
-								}))
-						: SNullWidget::NullWidget
+					SNew(SButton)
+						.Text(LOCTEXT("DisableRow", "Disable"))
+						.Visibility_Lambda([this]() { return bSelectMode ? EVisibility::Collapsed : EVisibility::Visible; })
+						.OnClicked_Lambda([this, Item]()
+							{
+								DisableOne(*Item);
+								return FReply::Handled();
+							})
 				]
 		];
 }
 
+
 /* ------------------------------------------------------------------ */
-/*  BOTÕES DO TOPO                                                    */
+/*  BOTÕES DO TOPO                                                     */
 /* ------------------------------------------------------------------ */
 FReply SPluginOptimizerDialog::OnSelectClicked()
 {
 	bSelectMode = !bSelectMode;
 	Selected.Empty();
 
-	SelectAllBtn->SetVisibility(bSelectMode ? EVisibility::Visible : EVisibility::Collapsed);
+	/* visibilidade de botões */
+	const EVisibility SelVis = bSelectMode ? EVisibility::Visible : EVisibility::Collapsed;
+	SelectAllBtn->SetVisibility(SelVis);
+	DisableSelectedBtn->SetVisibility(SelVis);
+
 	ListView->RequestListRefresh();
 	return FReply::Handled();
 }
@@ -145,13 +153,29 @@ FReply SPluginOptimizerDialog::OnSelectAllClicked()
 	return FReply::Handled();
 }
 
+FReply SPluginOptimizerDialog::OnDisableSelectedClicked()
+{
+	if (Selected.IsEmpty())
+	{
+		FMessageDialog::Open(EAppMsgType::Ok,
+			LOCTEXT("NoneSelected", "No plugins selected."));
+		return FReply::Handled();
+	}
+
+	/* cria array estável para iterar (Selected será modificado) */
+	TArray<FString> ToDisable = Selected.Array();
+	DisableMultiple(ToDisable);
+
+	return FReply::Handled();
+}
+
 /* ------------------------------------------------------------------ */
 /*  CHECKBOX                                                          */
 /* ------------------------------------------------------------------ */
-void SPluginOptimizerDialog::OnCheckboxChanged(ECheckBoxState NewState, TSharedPtr<FString> Item)
+void SPluginOptimizerDialog::OnCheckboxChanged(ECheckBoxState State, TSharedPtr<FString> Item)
 {
-	if (NewState == ECheckBoxState::Checked)  Selected.Add(*Item);
-	else                                      Selected.Remove(*Item);
+	if (State == ECheckBoxState::Checked)  Selected.Add(*Item);
+	else                                   Selected.Remove(*Item);
 }
 
 ECheckBoxState SPluginOptimizerDialog::IsItemChecked(TSharedPtr<FString> Item) const
@@ -160,20 +184,13 @@ ECheckBoxState SPluginOptimizerDialog::IsItemChecked(TSharedPtr<FString> Item) c
 }
 
 /* ------------------------------------------------------------------ */
-/*  DESATIVAR PLUGIN                                                  */
+/*  DESATIVAR 1                                                       */
 /* ------------------------------------------------------------------ */
-/* ------------------------------------------------------------------ */
-/*  DESATIVAR PLUGIN – versão que força refresh e avisa               */
-/* ------------------------------------------------------------------ */
-/* ------------------------------------------------------------------ */
-/*  DESATIVAR PLUGIN – versão final                                   */
-/* ------------------------------------------------------------------ */
-bool SPluginOptimizerDialog::DisablePlugin(const FString& PluginName)
+bool SPluginOptimizerDialog::DisableOne(const FString& PluginName)
 {
 	IProjectManager& ProjMgr = IProjectManager::Get();
 	FText Fail;
 
-	// 1. Marca como disabled no .uproject
 	if (!ProjMgr.SetPluginEnabled(PluginName, false, Fail))
 	{
 		FMessageDialog::Open(EAppMsgType::Ok,
@@ -182,20 +199,25 @@ bool SPluginOptimizerDialog::DisablePlugin(const FString& PluginName)
 		return false;
 	}
 
-	// 2. Salva o projeto
-	ProjMgr.SaveCurrentProjectToDisk(Fail);   // ignoramos falha aqui; já avisamos antes
+	ProjMgr.SaveCurrentProjectToDisk(Fail);
 
-	// 3. Atualiza UI
 	Items.RemoveAll([&](const TSharedPtr<FString>& Ptr) { return *Ptr == PluginName; });
 	Selected.Remove(PluginName);
 	RefreshHeader();
 	ListView->RequestListRefresh();
-
-	// 4. Feedback
-	FMessageDialog::Open(EAppMsgType::Ok,
-		LOCTEXT("RestartRequired", "Plugin disabled.\nPlease restart the Editor to finish unloading."));
-
 	return true;
+}
+
+/* ------------------------------------------------------------------ */
+/*  DESATIVAR VÁRIOS                                                  */
+/* ------------------------------------------------------------------ */
+void SPluginOptimizerDialog::DisableMultiple(const TArray<FString>& ToDisable)
+{
+	for (const FString& P : ToDisable)
+		DisableOne(P);
+
+	FMessageDialog::Open(EAppMsgType::Ok,
+		LOCTEXT("RestartRequired", "Selected plugins disabled.\nPlease restart the Editor to finish unloading."));
 }
 
 #undef LOCTEXT_NAMESPACE

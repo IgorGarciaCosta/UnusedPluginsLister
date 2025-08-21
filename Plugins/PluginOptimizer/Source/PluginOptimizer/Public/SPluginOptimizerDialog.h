@@ -4,6 +4,9 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 
+/* ------------------------------------------------------------------ */
+/*  Janela principal do “Plugin Optimizer”                            */
+/* ------------------------------------------------------------------ */
 class SPluginOptimizerDialog : public SCompoundWidget
 {
 public:
@@ -16,29 +19,36 @@ public:
 	void Construct(const FArguments& InArgs);
 
 private:
-	/* ---------- callbacks ---------- */
-	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FString> InItem,
+	/* ---------- geração de linhas ---------- */
+	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FString> Item,
 		const TSharedRef<STableViewBase>& OwnerTable);
 
+	/* ---------- botões do topo ------------- */
 	FReply OnSelectClicked();
 	FReply OnSelectAllClicked();
-	void   OnCheckboxChanged(ECheckBoxState NewState, TSharedPtr<FString> Item);
+	FReply OnDisableSelectedClicked();
 
-	bool DisablePlugin(const FString& PluginName);
-	void RefreshHeader();
-
+	/* ---------- checkbox linhas ------------ */
+	void   OnCheckboxChanged(ECheckBoxState State, TSharedPtr<FString> Item);
 	ECheckBoxState IsItemChecked(TSharedPtr<FString> Item) const;
 
-	/* ---------- dados ---------- */
-	TArray<TSharedPtr<FString>> Items;     // linhas da lista
-	TSet<FString>               Selected;  // seleção em modo select
+	/* ---------- lógica --------------------- */
+	bool DisableOne(const FString& PluginName);      // usado pelo modo item
+	void DisableMultiple(const TArray<FString>& ToDisable);
+
+	void RefreshHeader();
+
+	/* ---------- dados ---------------------- */
+	TArray<TSharedPtr<FString>> Items;   // plugins ainda listados
+	TSet<FString>               Selected;
 	bool                        bSelectMode = false;
 
 	int32 EnabledCnt = 0;
 	int32 UsedCnt = 0;
 
-	/* ---------- widgets ---------- */
+	/* ---------- widgets -------------------- */
 	TSharedPtr<SListView<TSharedPtr<FString>>> ListView;
 	TSharedPtr<STextBlock>                     HeaderText;
 	TSharedPtr<SButton>                        SelectAllBtn;
+	TSharedPtr<SButton>                        DisableSelectedBtn;
 };
