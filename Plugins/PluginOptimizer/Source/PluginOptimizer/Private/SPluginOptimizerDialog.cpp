@@ -55,14 +55,21 @@ void SPluginOptimizerDialog::Construct(const FArguments& InArgs)
 								.OnClicked(this, &SPluginOptimizerDialog::OnDisableSelectedClicked)
 						]
 
-						/* botão Select All (visível só em select-mode) */
+						/* botão Select All / Deselect All */
 						+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)
 						[
 							SAssignNew(SelectAllBtn, SButton)
-								.Text(LOCTEXT("SelectAll", "Select All"))
+								/*  rótulo muda dinamicamente  */
+								.Text_Lambda([this]()
+									{
+										return (Selected.Num() == Items.Num() && Items.Num() > 0)
+											? LOCTEXT("DeselectAll", "Deselect All")
+											: LOCTEXT("SelectAll", "Select All");
+									})
 								.Visibility(EVisibility::Collapsed)
 								.OnClicked(this, &SPluginOptimizerDialog::OnSelectAllClicked)
 						]
+
 				]
 
 				/* ---------------- lista -------------------- */
@@ -147,11 +154,23 @@ FReply SPluginOptimizerDialog::OnSelectClicked()
 
 FReply SPluginOptimizerDialog::OnSelectAllClicked()
 {
+	const bool bAllSelected = (Selected.Num() == Items.Num() && Items.Num() > 0);
+
 	Selected.Empty();
-	for (const TSharedPtr<FString>& It : Items) Selected.Add(*It);
+	if (!bAllSelected)
+	{
+		/* marcar todos */
+		for (const TSharedPtr<FString>& It : Items)
+			Selected.Add(*It);
+	}
+
 	ListView->RequestListRefresh();
+	/* força atualização do texto do botão */
+	SelectAllBtn->Invalidate(EInvalidateWidget::Layout);
+
 	return FReply::Handled();
 }
+
 
 FReply SPluginOptimizerDialog::OnDisableSelectedClicked()
 {
