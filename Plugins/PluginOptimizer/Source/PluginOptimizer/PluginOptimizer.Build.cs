@@ -6,36 +6,35 @@ public class PluginOptimizer : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        // Só compila em targets com Editor
+        /* Este plugin só existe no Editor. */
         if (!Target.bBuildEditor)
         {
-            return;                     // nada a fazer em Game/Shipping
+            PrecompileForTargets = PrecompileTargetsType.None;
+            return;
         }
 
-        // 1. Dependências QUE PRECISAM ficar públicas
-        PublicDependencyModuleNames.AddRange(new[]
+        PrivateDependencyModuleNames.AddRange(new[]
         {
+            /* Núcleo */
             "Core",
             "CoreUObject",
             "Engine",
+
+            /* UI / Editor */
             "Slate",
             "SlateCore",
+            "InputCore",     // <-- ADICIONADO: define EKeys
             "UnrealEd",
             "LevelEditor",
             "ToolMenus",
-            "Projects",
-            "AssetRegistry"
-        });
 
-        // 2. Se usar ApplicationCore/AppFramework coloque aqui também
-        PublicDependencyModuleNames.AddRange(new[]
-        {
+            /* Infraestrutura */
+            "Projects",        // IProjectManager
+            "AssetRegistry",
             "ApplicationCore",
             "AppFramework"
         });
 
-        // 3. Opcional – gera só no Editor (evita tentar pré-compilar)
-        //    Remova se quiser o benefício dos binários pré-compilados.
-        PrecompileForTargets = PrecompileTargetsType.None;
+        PrecompileForTargets = PrecompileTargetsType.Editor;
     }
 }

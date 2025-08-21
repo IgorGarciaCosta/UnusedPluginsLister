@@ -1,0 +1,3 @@
+ver se tem como desabilitar o plugin direto do popup. 
+
+se sim, colocar um botao de select onde vao aparecer checkboxes  e um botao de select all pra definer quem vai ser desabilitado
